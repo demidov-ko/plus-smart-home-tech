@@ -1,4 +1,51 @@
 @namespace("ru.yandex.practicum.kafka.telemetry.event")
 protocol SensorEventProtocol {
 
+	//запись, представляющая данные с климатического датчика
+	record ClimateSensorAvro {
+		int temperature_c;	// температура в градусах Цельсия
+		int humidity;		// уровень влажности
+		int co2_level; 		//уровень углекислого газа
+	}
+
+	// запись, представляющая данные с датчика света
+	record LightSensorAvro {
+		int link_quality;	// качество сигнала связи
+		int luminosity;		//  уровень освещённости
+	}
+
+	// апись, предоставляющая данные с датчика движения
+	record MotionSensorAvro {
+		int link_quality;	// качество сигнала связи
+		boolean motion;		//  обнаружено ли движение
+		int voltage;		// уровень напряжения
+	}
+
+	// запись, представляющая данные с датчика переключателя
+	record SwitchSensorAvro {
+		boolean state;	// текущее состояние переключателя (включено/выключено)
+	}
+
+	// запись, представляющая данные с датчика температуры
+	record TemperatureSensorAvro {
+		string id;
+		string hubId;
+		timestamp_ms timestamp;	// метка времени, указывающая, когда произошло событие телеметрии
+		int temperature_c;		// температура в градусах Цельсия
+		int temperature_f;		// температура в градусах Фаренгейта
+	}
+
+	// запись, представляющая данные события, связанного с сенсором
+	record SensorEventAvro {
+		string id;
+		string hubId;
+		timestamp_ms timestamp;
+		// поле, содержащее данные события
+		union {ClimateSensorAvro,
+			LightSensorAvro,
+			MotionSensorAvro,
+			SwitchSensorAvro,
+			TemperatureSensorAvro} payload;
+	}
+
 }
