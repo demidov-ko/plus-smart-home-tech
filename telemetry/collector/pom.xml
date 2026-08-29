@@ -13,10 +13,17 @@
     <packaging>jar</packaging>
 
     <dependencies>
-        <!-- Наши Avro-схемы -->
+        <!--Avro-схемы -->
         <dependency>
             <groupId>ru.yandex.practicum</groupId>
             <artifactId>avro-schemas</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!--Proto-схемы + gRPC stub-классы-->
+        <dependency>
+            <groupId>ru.yandex.practicum</groupId>
+            <artifactId>proto-schemas</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -28,6 +35,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+
+        <!--gRPC-сервер для Spring Boot-->
+        <dependency>
+            <groupId>net.devh</groupId>
+            <artifactId>grpc-server-spring-boot-starter</artifactId>
         </dependency>
 
         <!-- Kafka client -->

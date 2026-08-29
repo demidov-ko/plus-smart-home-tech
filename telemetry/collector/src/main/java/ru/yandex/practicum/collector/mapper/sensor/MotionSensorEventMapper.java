@@ -1,9 +1,8 @@
 package ru.yandex.practicum.collector.mapper.sensor;
 
 import org.springframework.stereotype.Component;
-import ru.yandex.practicum.collector.model.sensor.MotionSensorEvent;
-import ru.yandex.practicum.collector.model.sensor.SensorEvent;
-import ru.yandex.practicum.collector.model.sensor.SensorEventType;
+import ru.yandex.practicum.grpc.telemetry.event.MotionSensorProto;
+import ru.yandex.practicum.grpc.telemetry.event.SensorEventProto;
 import ru.yandex.practicum.kafka.telemetry.event.MotionSensorAvro;
 import ru.yandex.practicum.kafka.telemetry.event.SensorEventAvro;
 
@@ -11,24 +10,24 @@ import ru.yandex.practicum.kafka.telemetry.event.SensorEventAvro;
 public class MotionSensorEventMapper implements SensorEventMapper {
 
     @Override
-    public SensorEventType getType() {
-        return SensorEventType.MOTION_SENSOR_EVENT;
+    public SensorEventProto.PayloadCase getPayloadCase() {
+        return SensorEventProto.PayloadCase.MOTION_SENSOR;
     }
 
     @Override
-    public SensorEventAvro map(SensorEvent event) {
-        MotionSensorEvent source = (MotionSensorEvent) event;
+    public SensorEventAvro map(SensorEventProto event) {
+        MotionSensorProto source = event.getMotionSensor();
 
         MotionSensorAvro payload = MotionSensorAvro.newBuilder()
                 .setLinkQuality(source.getLinkQuality())
-                .setMotion(source.isMotion())
+                .setMotion(source.getMotion())
                 .setVoltage(source.getVoltage())
                 .build();
 
         return SensorEventAvro.newBuilder()
-                .setId(source.getId())
-                .setHubId(source.getHubId())
-                .setTimestamp(source.getTimestamp())
+                .setId(event.getId())
+                .setHubId(event.getHubId())
+                .setTimestamp(toInstant(event.getTimestamp()))
                 .setPayload(payload)
                 .build();
     }

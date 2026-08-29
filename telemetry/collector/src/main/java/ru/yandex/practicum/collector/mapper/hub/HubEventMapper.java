@@ -1,11 +1,17 @@
 package ru.yandex.practicum.collector.mapper.hub;
 
-import ru.yandex.practicum.collector.model.hub.HubEvent;
-import ru.yandex.practicum.collector.model.hub.types.HubEventType;
+import com.google.protobuf.Timestamp;
+import ru.yandex.practicum.grpc.telemetry.event.HubEventProto;
 import ru.yandex.practicum.kafka.telemetry.event.HubEventAvro;
 
-public interface HubEventMapper {
-    HubEventType getType();
+import java.time.Instant;
 
-    HubEventAvro map(HubEvent event);
+public interface HubEventMapper {
+    HubEventProto.PayloadCase getPayloadCase();
+
+    HubEventAvro map(HubEventProto event);
+
+    default Instant toInstant(Timestamp timestamp) {
+        return Instant.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos());
+    }
 }
