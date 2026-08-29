@@ -1,9 +1,8 @@
 package ru.yandex.practicum.collector.mapper.sensor;
 
 import org.springframework.stereotype.Component;
-import ru.yandex.practicum.collector.model.sensor.ClimateSensorEvent;
-import ru.yandex.practicum.collector.model.sensor.SensorEvent;
-import ru.yandex.practicum.collector.model.sensor.SensorEventType;
+import ru.yandex.practicum.grpc.telemetry.event.ClimateSensorProto;
+import ru.yandex.practicum.grpc.telemetry.event.SensorEventProto;
 import ru.yandex.practicum.kafka.telemetry.event.ClimateSensorAvro;
 import ru.yandex.practicum.kafka.telemetry.event.SensorEventAvro;
 
@@ -11,13 +10,14 @@ import ru.yandex.practicum.kafka.telemetry.event.SensorEventAvro;
 public class ClimateSensorEventMapper implements SensorEventMapper {
 
     @Override
-    public SensorEventType getType() {
-        return SensorEventType.CLIMATE_SENSOR_EVENT;
+    public SensorEventProto.PayloadCase getPayloadCase() {
+        return SensorEventProto.PayloadCase.CLIMATE_SENSOR;
     }
 
     @Override
-    public SensorEventAvro map(SensorEvent event) {
-        ClimateSensorEvent source = (ClimateSensorEvent) event;
+    // Используем SensorEventProto из Protobuf для всего, а конкретные данные достаем геттером под конкретный oneof
+    public SensorEventAvro map(SensorEventProto event) {
+        ClimateSensorProto source = event.getClimateSensor();
 
         ClimateSensorAvro payload = ClimateSensorAvro.newBuilder()
                 .setTemperatureC(source.getTemperatureC())
@@ -26,10 +26,15 @@ public class ClimateSensorEventMapper implements SensorEventMapper {
                 .build();
 
         return SensorEventAvro.newBuilder()
-                .setId(source.getId())
-                .setHubId(source.getHubId())
-                .setTimestamp(source.getTimestamp())
+                .setId(event.getId())
+                .setHubId(event.getHubId())
+                .setTimestamp(toInstant(event.getTimestamp()))
                 .setPayload(payload)
                 .build();
     }
+
+    // необходим, т.к. Protobuf отдельная структура с полями seconds/nanos, а setTimestamp ожидает Instant
+//    private Instant toInstant(Timestamp timestamp) {
+//        return Instant.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos());
+//    }
 }

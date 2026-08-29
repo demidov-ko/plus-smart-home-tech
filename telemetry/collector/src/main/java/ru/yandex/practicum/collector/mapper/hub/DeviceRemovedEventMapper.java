@@ -1,9 +1,8 @@
 package ru.yandex.practicum.collector.mapper.hub;
 
 import org.springframework.stereotype.Component;
-import ru.yandex.practicum.collector.model.hub.DeviceRemovedEvent;
-import ru.yandex.practicum.collector.model.hub.HubEvent;
-import ru.yandex.practicum.collector.model.hub.types.HubEventType;
+import ru.yandex.practicum.grpc.telemetry.event.DeviceRemovedEventProto;
+import ru.yandex.practicum.grpc.telemetry.event.HubEventProto;
 import ru.yandex.practicum.kafka.telemetry.event.DeviceRemovedEventAvro;
 import ru.yandex.practicum.kafka.telemetry.event.HubEventAvro;
 
@@ -11,21 +10,21 @@ import ru.yandex.practicum.kafka.telemetry.event.HubEventAvro;
 public class DeviceRemovedEventMapper implements HubEventMapper {
 
     @Override
-    public HubEventType getType() {
-        return HubEventType.DEVICE_REMOVED;
+    public HubEventProto.PayloadCase getPayloadCase() {
+        return HubEventProto.PayloadCase.DEVICE_REMOVED;
     }
 
     @Override
-    public HubEventAvro map(HubEvent event) {
-        DeviceRemovedEvent source = (DeviceRemovedEvent) event;
+    public HubEventAvro map(HubEventProto event) {
+        DeviceRemovedEventProto source = event.getDeviceRemoved();
 
         DeviceRemovedEventAvro payload = DeviceRemovedEventAvro.newBuilder()
                 .setId(source.getId())
                 .build();
 
         return HubEventAvro.newBuilder()
-                .setHubId(source.getHubId())
-                .setTimestamp(source.getTimestamp())
+                .setHubId(event.getHubId())
+                .setTimestamp(toInstant(event.getTimestamp()))
                 .setPayload(payload)
                 .build();
     }

@@ -1,22 +1,21 @@
 package ru.yandex.practicum.collector.mapper.sensor;
 
 import org.springframework.stereotype.Component;
-import ru.yandex.practicum.collector.model.sensor.LightSensorEvent;
-import ru.yandex.practicum.collector.model.sensor.SensorEvent;
-import ru.yandex.practicum.collector.model.sensor.SensorEventType;
+import ru.yandex.practicum.grpc.telemetry.event.LightSensorProto;
+import ru.yandex.practicum.grpc.telemetry.event.SensorEventProto;
 import ru.yandex.practicum.kafka.telemetry.event.LightSensorAvro;
 import ru.yandex.practicum.kafka.telemetry.event.SensorEventAvro;
 
 @Component
 public class LightSensorEventMapper implements SensorEventMapper {
     @Override
-    public SensorEventType getType() {
-        return SensorEventType.LIGHT_SENSOR_EVENT;
+    public SensorEventProto.PayloadCase getPayloadCase() {
+        return SensorEventProto.PayloadCase.LIGHT_SENSOR;
     }
 
     @Override
-    public SensorEventAvro map(SensorEvent event) {
-        LightSensorEvent source = (LightSensorEvent) event;
+    public SensorEventAvro map(SensorEventProto event) {
+        LightSensorProto source = event.getLightSensor();
 
         LightSensorAvro payload = LightSensorAvro.newBuilder()
                 .setLinkQuality(source.getLinkQuality())
@@ -24,9 +23,9 @@ public class LightSensorEventMapper implements SensorEventMapper {
                 .build();
 
         return SensorEventAvro.newBuilder()
-                .setId(source.getId())
-                .setHubId(source.getHubId())
-                .setTimestamp(source.getTimestamp())
+                .setId(event.getId())
+                .setHubId(event.getHubId())
+                .setTimestamp(toInstant(event.getTimestamp()))
                 .setPayload(payload)
                 .build();
     }

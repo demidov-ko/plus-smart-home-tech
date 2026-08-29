@@ -1,9 +1,8 @@
 package ru.yandex.practicum.collector.mapper.hub;
 
 import org.springframework.stereotype.Component;
-import ru.yandex.practicum.collector.model.hub.DeviceAddedEvent;
-import ru.yandex.practicum.collector.model.hub.HubEvent;
-import ru.yandex.practicum.collector.model.hub.types.HubEventType;
+import ru.yandex.practicum.grpc.telemetry.event.DeviceAddedEventProto;
+import ru.yandex.practicum.grpc.telemetry.event.HubEventProto;
 import ru.yandex.practicum.kafka.telemetry.event.DeviceAddedEventAvro;
 import ru.yandex.practicum.kafka.telemetry.event.DeviceTypeAvro;
 import ru.yandex.practicum.kafka.telemetry.event.HubEventAvro;
@@ -12,22 +11,23 @@ import ru.yandex.practicum.kafka.telemetry.event.HubEventAvro;
 public class DeviceAddedEventMapper implements HubEventMapper {
 
     @Override
-    public HubEventType getType() {
-        return HubEventType.DEVICE_ADDED;
+    public HubEventProto.PayloadCase getPayloadCase() {
+        return HubEventProto.PayloadCase.DEVICE_ADDED;
     }
 
     @Override
-    public HubEventAvro map(HubEvent event) {
-        DeviceAddedEvent source = (DeviceAddedEvent) event;
+    public HubEventAvro map(HubEventProto event) {
+        DeviceAddedEventProto source = event.getDeviceAdded();
 
         DeviceAddedEventAvro payload = DeviceAddedEventAvro.newBuilder()
                 .setId(source.getId())
-                .setType(DeviceTypeAvro.valueOf(source.getDeviceType().name()))
+                // source.getType() возвращает DeviceTypeProto и конвертируем его в Avro-enum константы
+                .setType(DeviceTypeAvro.valueOf(source.getType().name()))
                 .build();
 
         return HubEventAvro.newBuilder()
-                .setHubId(source.getHubId())
-                .setTimestamp(source.getTimestamp())
+                .setHubId(event.getHubId())
+                .setTimestamp(toInstant(event.getTimestamp()))
                 .setPayload(payload)
                 .build();
     }
