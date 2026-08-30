@@ -1,16 +1,11 @@
-server:
-  port: 8080
-
-grpc:
-  server:
-    port: 59091
-
 kafka:
   bootstrap-servers: localhost:9092
+  consumer:
+    group-id: aggregator-service
   topics:
     sensors: telemetry.sensors.v1
-    hubs: telemetry.hubs.v1
+    snapshots: telemetry.snapshots.v1
 
 spring:
   application:
-    name: collector
+    name: aggregator
