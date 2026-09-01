@@ -47,16 +47,19 @@ public class SnapshotProcessor {
                 ConsumerRecords<String, SensorsSnapshotAvro> records = consumer.poll(Duration.ofMillis(1000));
 
                 for (ConsumerRecord<String, SensorsSnapshotAvro> record : records) {
-                    handleSnapshot(record.value());
+                    try {
+                        handleSnapshot(record.value());
+                    } catch (Exception e) {
+                        log.error("Ошибка обработки снапшота (offset={}, hubId={}): {}",
+                                record.offset(), record.key(), e.getMessage(), e);
+                    }
                 }
-                // гарант, что последнее прочитанное сообщение зафиксировано
+                // коммитим даже если часть записей упала
                 consumer.commitSync();
             }
 
         } catch (WakeupException ignored) {
             // ожидаем при остановке
-        } catch (Exception e) {
-            log.error("Ошибка во время обработки снапшотов", e);
         } finally {
             try {
                 consumer.commitSync();
@@ -83,20 +86,15 @@ public class SnapshotProcessor {
 
     // выполняет все действия из сработавшего сценария
     private void executeScenario(Scenario scenario) {
-        log.warn("ВЫПОЛНЯЮ СЦЕНАРИЙ: hub={}, name={}, действий={}",
-                scenario.getHubId(),
-                scenario.getName(),
-                scenario.getActions().size());
+        log.info("ВЫПОЛНЯЮ СЦЕНАРИЙ: hub={}, name={}, действий={}",
+                scenario.getHubId(), scenario.getName(), scenario.getActions().size());
 
         for (ScenarioAction scenarioAction : scenario.getActions()) {
-
-            log.warn("ОТПРАВЛЯЮ: sensor={}, actionType={}, value={}",
-                    scenarioAction.getSensor().getId(),
-                    scenarioAction.getAction().getType(),
-                    scenarioAction.getAction().getValue());
-
             // перевод сущности из БД в proto сообщение для gRPC
             DeviceActionProto action = actionProtoMapper.map(scenarioAction);
+
+            log.debug("ОТПРАВЛЯЮ ДЕЙСТВИЕ: sensor={}, actionType={}, value={}",
+                    action.getSensorId(), action.getType(), action.getValue());
             hubRouterClient.sendAction(scenario.getHubId(), scenario.getName(), action);
         }
     }

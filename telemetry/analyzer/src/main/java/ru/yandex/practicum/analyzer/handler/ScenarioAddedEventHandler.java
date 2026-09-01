@@ -2,6 +2,7 @@ package ru.yandex.practicum.analyzer.handler;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.analyzer.entity.*;
 import ru.yandex.practicum.analyzer.repository.ActionRepository;
 import ru.yandex.practicum.analyzer.repository.ConditionRepository;
@@ -26,6 +27,8 @@ public class ScenarioAddedEventHandler implements HubEventHandler {
     }
 
     @Override
+    //если датчик не найден на середине списка, то откатится все, включая уже удаленную старую версию сценария
+    @Transactional
     public void handle(HubEventAvro event) {
         ScenarioAddedEventAvro payload = (ScenarioAddedEventAvro) event.getPayload();
         String hubId = event.getHubId();
@@ -38,7 +41,6 @@ public class ScenarioAddedEventHandler implements HubEventHandler {
         Scenario scenario = new Scenario();
         scenario.setHubId(hubId);
         scenario.setName(payload.getName());
-        scenario = scenarioRepository.save(scenario);
 
         for (ScenarioConditionAvro conditionAvro : payload.getConditions()) {
             Sensor sensor = sensorRepository.findByIdAndHubId(conditionAvro.getSensorId(), hubId)
@@ -52,7 +54,6 @@ public class ScenarioAddedEventHandler implements HubEventHandler {
             condition = conditionRepository.save(condition);
 
             ScenarioCondition scenarioCondition = new ScenarioCondition();
-            scenarioCondition.setId(new ScenarioConditionId(scenario.getId(), sensor.getId(), condition.getId()));
             scenarioCondition.setScenario(scenario);
             scenarioCondition.setSensor(sensor);
             scenarioCondition.setCondition(condition);
@@ -70,7 +71,6 @@ public class ScenarioAddedEventHandler implements HubEventHandler {
             action = actionRepository.save(action);
 
             ScenarioAction scenarioAction = new ScenarioAction();
-            scenarioAction.setId(new ScenarioActionId(scenario.getId(), sensor.getId(), action.getId()));
             scenarioAction.setScenario(scenario);
             scenarioAction.setSensor(sensor);
             scenarioAction.setAction(action);

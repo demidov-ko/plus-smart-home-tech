@@ -3,8 +3,8 @@ package ru.yandex.practicum.analyzer.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 
 @Entity
 @Table(name = "scenarios")
@@ -24,9 +24,9 @@ public class Scenario {
     //FetchType.EAGER	Загружает conditions и actions сразу, до закрытия сессии
     @OneToMany(mappedBy = "scenario", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default // гарантия, что писки инициализируются пустым ArrayList, а не null
-    private List<ScenarioCondition> conditions = new ArrayList<>();
+    private Set<ScenarioCondition> conditions = new HashSet<>();
 
     @OneToMany(mappedBy = "scenario", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     @Builder.Default
-    private List<ScenarioAction> actions = new ArrayList<>();
+    private Set<ScenarioAction> actions = new HashSet<>();
 }

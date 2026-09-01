@@ -8,7 +8,7 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: false
 
 kafka:
@@ -16,6 +16,8 @@ kafka:
   consumer:
     hub-events-group-id: analyzer-hub-events
     snapshots-group-id: analyzer-snapshots
+    auto-offset-reset: earliest
+    enable-auto-commit: false
   topics:
     hubs: telemetry.hubs.v1
     snapshots: telemetry.snapshots.v1

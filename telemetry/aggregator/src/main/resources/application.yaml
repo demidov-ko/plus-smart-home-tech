@@ -1,10 +1,13 @@
 kafka:
   bootstrap-servers: localhost:9092
-  consumer:
-    group-id: aggregator-service
   topics:
     sensors: telemetry.sensors.v1
     snapshots: telemetry.snapshots.v1
+
+  aggregator:
+    group-id: aggregator-service
+    auto-offset-reset: earliest
+    enable-auto-commit: false
 
 spring:
   application:

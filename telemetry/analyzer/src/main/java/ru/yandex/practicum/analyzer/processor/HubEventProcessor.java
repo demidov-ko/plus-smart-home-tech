@@ -48,7 +48,13 @@ public class HubEventProcessor implements Runnable {
                 ConsumerRecords<String, HubEventAvro> records = consumer.poll(Duration.ofMillis(1000));
 
                 for (ConsumerRecord<String, HubEventAvro> record : records) {
-                    handleEvent(record.value());
+                    try {
+                        handleEvent(record.value());
+                    } catch (Exception e) {
+                        // не пробрасываем, переходим к следующей записи, эта будет пропущена после коммита
+                        log.error("Ошибка обработки события хаба (offset={}, hubId={}): {}",
+                                record.offset(), record.key(), e.getMessage(), e);
+                    }
                 }
 
                 // асинхронно фиксируем смещение(если приложение упадет до коммита, при рестарте сообщения придут снова
@@ -57,8 +63,6 @@ public class HubEventProcessor implements Runnable {
 
         } catch (WakeupException ignored) {
             // ожидаем при остановке
-        } catch (Exception e) {
-            log.error("Ошибка во время обработки событий хаба", e);
         } finally {
             try {
                 consumer.commitSync();
