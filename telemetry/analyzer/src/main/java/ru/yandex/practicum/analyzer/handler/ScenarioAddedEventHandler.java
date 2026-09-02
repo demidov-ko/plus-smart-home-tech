@@ -54,6 +54,7 @@ public class ScenarioAddedEventHandler implements HubEventHandler {
             condition = conditionRepository.save(condition);
 
             ScenarioCondition scenarioCondition = new ScenarioCondition();
+            scenarioCondition.setId(new ScenarioConditionId(scenario.getId(), sensor.getId(), condition.getId()));
             scenarioCondition.setScenario(scenario);
             scenarioCondition.setSensor(sensor);
             scenarioCondition.setCondition(condition);
@@ -71,6 +72,7 @@ public class ScenarioAddedEventHandler implements HubEventHandler {
             action = actionRepository.save(action);
 
             ScenarioAction scenarioAction = new ScenarioAction();
+            scenarioAction.setId(new ScenarioActionId(scenario.getId(), sensor.getId(), action.getId()));
             scenarioAction.setScenario(scenario);
             scenarioAction.setSensor(sensor);
             scenarioAction.setAction(action);

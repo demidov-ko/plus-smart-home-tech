@@ -9,7 +9,6 @@ import lombok.*;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@EqualsAndHashCode(of = "id")
 public class ScenarioCondition {
     @EmbeddedId
     private ScenarioConditionId id;

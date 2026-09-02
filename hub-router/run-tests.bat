@@ -17,6 +17,8 @@ if "%BRANCH%"=="1-collector-json" (
     set TEST_SCRIPT=%SCRIPTS_PATH%\3-aggregator-tests.bat
 ) else if "%BRANCH%"=="4-analyzer" (
     set TEST_SCRIPT=%SCRIPTS_PATH%\4-analyzer-tests.bat
+) else if "%BRANCH%"=="develop" (
+     set TEST_SCRIPT=%SCRIPTS_PATH%\4-analyzer-tests.bat
 ) else (
     echo ❌ Неизвестная ветка: "%BRANCH%"
     echo Этот скрипт поддерживает только ветки:
