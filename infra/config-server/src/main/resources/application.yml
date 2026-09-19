@@ -1,0 +1,18 @@
+# Настройка native-хранилища (Config Server читает конфигурацию из локальной файловой системы)
+
+server:
+  port: 8888    # задаёт порт Config Server
+
+spring:
+  application:
+    name: config-server
+  profiles:
+    active: native      # включает режим чтения конфигурации из файловой системы
+  cloud:
+    config:
+      server:
+        native:
+          search-locations:   # указывает, где искать конфигурационные файлы
+# путь ./infra/config-repo означает: перейди из рабочей дериктории в поддиректорию infra, а затем в поддиректорию config-repo
+            - file:./infra/config-repo    # нужен для общего файла application.yml
+            - file:./infra/config-repo/telemetry  # нужен для сервисных файлов aggregator.yml, analyzer.yml и collector.yml

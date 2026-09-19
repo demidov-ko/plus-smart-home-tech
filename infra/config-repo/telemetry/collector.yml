@@ -1,0 +1,17 @@
+# Перенесли локальные настройки и сервиса collector
+server:
+  port: 8080
+
+grpc:
+  server:
+    port: 59091
+
+kafka:
+  bootstrap-servers: localhost:9092
+  topics:
+    sensors: telemetry.sensors.v1
+    hubs: telemetry.hubs.v1
+
+spring:
+  application:
+    name: collector

@@ -68,6 +68,23 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!--______________________________________________________________________________________-->
+        <!-- Spring Cloud Config Client (в родительском pom есть версия Spring Cloud) -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-config</artifactId>
+        </dependency>
+        <!-- Зависимости, чтобы клиент повторял попытки получить конфигурацию-->
+        <dependency>
+            <groupId>org.springframework.retry</groupId>
+            <artifactId>spring-retry</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-aop</artifactId>
+        </dependency>
+        <!--______________________________________________________________________________________-->
+
     </dependencies>
 
     <build>
