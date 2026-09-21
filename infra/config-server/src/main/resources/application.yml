@@ -16,3 +16,4 @@ spring:
 # путь ./infra/config-repo означает: перейди из рабочей дериктории в поддиректорию infra, а затем в поддиректорию config-repo
             - file:./infra/config-repo    # нужен для общего файла application.yml
             - file:./infra/config-repo/telemetry  # нужен для сервисных файлов aggregator.yml, analyzer.yml и collector.yml
+            - file:./infra/config-repo/commerce

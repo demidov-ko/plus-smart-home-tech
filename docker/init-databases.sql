@@ -1,4 +1,8 @@
 ---- Скрипт автоматически выполняется при первом запуске контейнера PostgreSQL.
+CREATE DATABASE product_db;
+CREATE DATABASE inventory_db;
+CREATE DATABASE order_db;
+
 -- создаём таблицу scenarios
 CREATE TABLE IF NOT EXISTS scenarios (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
