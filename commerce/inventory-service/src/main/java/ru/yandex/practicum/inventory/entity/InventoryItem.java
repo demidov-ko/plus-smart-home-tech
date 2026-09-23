@@ -25,7 +25,6 @@ public class InventoryItem {
     @Builder.Default
     private Integer reservedQuantity = 0;
 
-    @Transient
     public Integer getAvailableQuantity() {
         return quantity - reservedQuantity;
     }

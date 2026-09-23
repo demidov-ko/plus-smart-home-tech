@@ -1,5 +1,6 @@
 package ru.yandex.practicum.order.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -13,6 +14,7 @@ public record OrderItemRequest(
         Long productId,
 
         @NotBlank(message = "Название товара обязательно")
+        @JsonAlias("name")
         String productName,
 
         @NotNull(message = "Количество обязательно")

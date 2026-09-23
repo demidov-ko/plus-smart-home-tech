@@ -2,6 +2,7 @@ package ru.yandex.practicum.inventory.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.inventory.dto.InventoryDto;
 import ru.yandex.practicum.inventory.dto.ReserveRequest;
 import ru.yandex.practicum.inventory.dto.ReserveResponse;
@@ -17,6 +18,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryRepository inventoryRepository;
@@ -42,6 +44,7 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    @Transactional
     public InventoryDto create(UpdateInventoryRequest request) {
         if (inventoryRepository.existsByProductId(request.productId())) {
             throw new InvalidStateException(
@@ -57,17 +60,26 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
+    @Transactional
     public InventoryDto updateQuantity(UpdateInventoryRequest request) {
         if (request.quantity() < 0) {
             throw new IllegalArgumentException("Количество не может быть отрицательным");
         }
 
         InventoryItem item = getEntityByProductId(request.productId());
+
+        if (request.quantity() < item.getReservedQuantity()) {
+            throw new InvalidStateException(
+                    "Новое количество (" + request.quantity() + ") меньше зарезервированного ("
+                            + item.getReservedQuantity() + ") для товара id=" + request.productId());
+        }
+
         item.setQuantity(request.quantity());
         return inventoryMapper.toDto(inventoryRepository.save(item));
     }
 
     @Override
+    @Transactional
     public ReserveResponse reserve(ReserveRequest request) {
         if (request.quantity() <= 0) {
             throw new IllegalArgumentException("Количество для резерва должно быть положительным");
