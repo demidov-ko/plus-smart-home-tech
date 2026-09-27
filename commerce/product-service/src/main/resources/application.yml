@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: product-service
+  config:
+    import: configserver:http://localhost:8888
+  cloud:
+    config:
+      fail-fast: true # если Config Server недоступен, клиент не молча стартует с дефолтами, а сразу падает с ошибкой
+      retry:
+        max-attempts: 6 # делает 6 попыток с растущим интервалом
+        initial-interval: 1000
+        multiplier: 1.1
+        max-interval: 2000

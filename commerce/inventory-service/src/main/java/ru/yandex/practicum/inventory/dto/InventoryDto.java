@@ -6,10 +6,10 @@ public record InventoryDto(
 
         Long productId,
 
-        Integer quantity,
+        Integer quantity,   // общее количество товара на складе
 
-        Integer reservedQuantity,
+        Integer reservedQuantity,   // зарезервированное количество
 
-        Integer availableQuantity
+        Integer availableQuantity   //доступное количество, которое вычисляется как quantity - reservedQuantity
 ) {
 }

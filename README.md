@@ -92,9 +92,31 @@ docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:9092 -
 Ошибки gRPC-вызова логируются, но не прерывают обработку остальных действий/снапшотов.
 
 
+## Discovery server
 
+Идея паттерна Service Discovery в том, чтобы сервисы находили друг друга по имени, а не по заранее прописанному адресу.
 
+Для этого в системе нужен реестр сервисов. В нём хранится информация о запущенных экземплярах: имя сервиса, адрес, порт и технические метаданные.
 
+### Запускаем сервер Eureka
 
+* Запуск Config Server
+* Запуск DiscoveryServer
+* Запуск Aggregator, Analyzer и Collector
+* Проверка на `http://localhost:8761`
+  * откроется Eureka Dashboard — веб-интерфейс Eureka Server и в нем будут зарегестрированные приложения
+* Проверяем реестр через HTTP `curl http://localhost:8761/eureka/apps` в терминале
+  * Или проверка конкретного сервиса`http://localhost:8761/eureka/apps/AGGREGATOR`
 
+### Где хранится адрес Eureka Server
+В общей конфигурации можно хранить адрес Eureka Server.
+Это удобно, потому что Aggregator, Analyzer и Collector будут обращаться к одному и тому же реестру сервисов.
 
+```avroidl
+    Настройка Eureka в общий файл
+		eureka:
+		    client:
+		        serviceUrl:
+                    defaultZone: http://localhost:8761/eureka/ 
+```
+Так же добавлена зависимость `spring-cloud-starter-netflix-eureka-client` в каждый сервис

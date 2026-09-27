@@ -1,38 +1,13 @@
 spring:
   application:
     name: analyzer
-  datasource:
-    url: jdbc:postgresql://localhost:5433/telemetry_analyzer
-    username: dbuser
-    password: 12345
-    driver-class-name: org.postgresql.Driver
-  jpa:
-    hibernate:
-      ddl-auto: update
-    show-sql: false
-
-kafka:
-  bootstrap-servers: localhost:9092
-  consumer:
-    hub-events-group-id: analyzer-hub-events
-    snapshots-group-id: analyzer-snapshots
-    auto-offset-reset: earliest
-    enable-auto-commit: false
-  topics:
-    hubs: telemetry.hubs.v1
-    snapshots: telemetry.snapshots.v1
-
-grpc:
-  client:
-    hub-router:
-      address: 'static://localhost:59090'
-      enableKeepAlive: true
-      keepAliveWithoutCalls: true
-      negotiationType: plaintext
-
-logging:
-  level:
-    com.zaxxer.hikari: DEBUG
-    org.hibernate: DEBUG
-    org.springframework.jdbc: DEBUG
-    org.springframework.orm: DEBUG
+  config:
+    import: configserver:http://localhost:8888
+  cloud:
+    config:
+      fail-fast: true # если Config Server недоступен, клиент не молча стартует с дефолтами, а сразу падает с ошибкой
+      retry:
+        max-attempts: 6 # делает 6 попыток с растущим интервалом
+        initial-interval: 1000
+        multiplier: 1.1
+        max-interval: 2000
