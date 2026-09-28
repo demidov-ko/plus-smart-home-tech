@@ -13,3 +13,19 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+feign:
+  client:
+    config:
+      default:   # применяется по умолчанию для всех клиентов
+        connectTimeout: 2000
+        readTimeout: 3000
+      product-service:
+        loggerLevel: basic
+      inventory-service:  # название сервиса в @FeignClient
+        connectTimeout: 1000
+        readTimeout: 2000
+
+logging:
+  level:
+    ru.yandex.practicum.order.feign: DEBUG

@@ -1,13 +1,12 @@
 package ru.yandex.practicum.order.mapper;
 
 import org.springframework.stereotype.Component;
-import ru.yandex.practicum.order.dto.CreateOrderRequest;
 import ru.yandex.practicum.order.dto.OrderDto;
 import ru.yandex.practicum.order.dto.OrderItemDto;
-import ru.yandex.practicum.order.dto.OrderItemRequest;
 import ru.yandex.practicum.order.entity.Order;
 import ru.yandex.practicum.order.entity.OrderItem;
 import ru.yandex.practicum.order.entity.OrderStatus;
+import ru.yandex.practicum.order.dto.OrderItemData;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -44,36 +43,33 @@ public class OrderMapper {
         );
     }
 
-    public Order toEntity(CreateOrderRequest request) {
-        if (request == null) {
-            return null;
-        }
-
+    public Order toEntity(String customerName, String customerEmail,
+                          List<OrderItemData> items) {
         Order order = Order.builder()
-                .customerName(request.customerName())
-                .customerEmail(request.customerEmail())
-                .status(OrderStatus.CREATED)
+                .customerName(customerName)
+                .customerEmail(customerEmail)
+                .status(OrderStatus.CONFIRMED)
                 .createdAt(LocalDateTime.now())
                 .items(new ArrayList<>())
                 .build();
 
         BigDecimal total = BigDecimal.ZERO;
 
-        for (OrderItemRequest itemRequest : request.items()) {
+        for (OrderItemData item : items) {
             // создаём сущность позиции и копируем productId, productName, quantity, price
             // это «снимок» данных товара на момент оформления заказа, чтобы заказ не пострадал при изм. товара
-            OrderItem item = OrderItem.builder()
-                    .productId(itemRequest.productId())
-                    .productName(itemRequest.productName())
-                    .quantity(itemRequest.quantity())
-                    .price(itemRequest.price())
+            OrderItem entity = OrderItem.builder()
+                    .productId(item.productId())
+                    .productName(item.productName())
+                    .quantity(item.quantity())
+                    .price(item.price())
                     .build();
 
-            order.addItem(item);
+            order.addItem(entity);
 
             // .multiply() - умножение BigDecimal (для денег нельзя использовать оператор *)
             // total.add(...) - прибавляем к общей сумме (BigDecimal изменять нельзя, add() возвращает новый)
-            total = total.add(itemRequest.price().multiply(BigDecimal.valueOf(itemRequest.quantity())));
+            total = total.add(item.price().multiply(BigDecimal.valueOf(item.quantity())));
         }
 
         order.setTotalPrice(total);
