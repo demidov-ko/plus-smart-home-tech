@@ -1,7 +1,7 @@
 package ru.yandex.practicum.order.service;
 
-import ru.yandex.practicum.order.dto.CreateOrderRequest;
 import ru.yandex.practicum.order.dto.OrderDto;
+import ru.yandex.practicum.order.dto.OrderItemData;
 
 import java.util.List;
 
@@ -12,6 +12,6 @@ public interface OrderService {
 
     List<OrderDto> getByEmail(String email);
 
-    OrderDto createOrder(CreateOrderRequest request);
+    OrderDto saveOrder(String customerName, String customerEmail, List<OrderItemData> items);
 
 }

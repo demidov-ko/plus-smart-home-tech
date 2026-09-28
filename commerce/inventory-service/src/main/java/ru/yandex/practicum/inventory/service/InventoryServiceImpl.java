@@ -8,6 +8,7 @@ import ru.yandex.practicum.inventory.dto.ReserveRequest;
 import ru.yandex.practicum.inventory.dto.ReserveResponse;
 import ru.yandex.practicum.inventory.dto.UpdateInventoryRequest;
 import ru.yandex.practicum.inventory.entity.InventoryItem;
+import ru.yandex.practicum.inventory.exception.BadRequestException;
 import ru.yandex.practicum.inventory.exception.InsufficientStockException;
 import ru.yandex.practicum.inventory.exception.InvalidStateException;
 import ru.yandex.practicum.inventory.exception.NotFoundException;
@@ -97,6 +98,24 @@ public class InventoryServiceImpl implements InventoryService {
         InventoryItem saved = inventoryRepository.save(item);
 
         return new ReserveResponse(true, saved.getAvailableQuantity(), "Товар успешно зарезервирован");
+    }
+
+    // Компенсация резерва: order-service вызывает это, если сценарий заказа
+    // сорвался после успешного резервирования.
+    @Transactional
+    public ReserveResponse release(ReserveRequest request) {
+        InventoryItem item = getEntityByProductId(request.productId());
+
+        if (item.getReservedQuantity() < request.quantity()) {
+            throw new BadRequestException(
+                    "Нельзя снять резерв " + request.quantity() + " ед. для товара id=" + request.productId()
+                            + ": сейчас зарезервировано только " + item.getReservedQuantity());
+        }
+
+        item.setReservedQuantity(item.getReservedQuantity() - request.quantity());
+        InventoryItem saved = inventoryRepository.save(item);
+
+        return new ReserveResponse(true, saved.getAvailableQuantity(), "Резерв успешно снят");
     }
 }
 

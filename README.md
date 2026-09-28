@@ -107,6 +107,9 @@ docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:9092 -
   * откроется Eureka Dashboard — веб-интерфейс Eureka Server и в нем будут зарегестрированные приложения
 * Проверяем реестр через HTTP `curl http://localhost:8761/eureka/apps` в терминале
   * Или проверка конкретного сервиса`http://localhost:8761/eureka/apps/AGGREGATOR`
+* Запуск OrderService, ProductService и InventoryService
+* Запуск приложения java -jar commerce/web-ui/web-ui.jar
+  * Проверка на сайте http://localhost:8443
 
 ### Где хранится адрес Eureka Server
 В общей конфигурации можно хранить адрес Eureka Server.
@@ -120,3 +123,36 @@ docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:9092 -
                     defaultZone: http://localhost:8761/eureka/ 
 ```
 Так же добавлена зависимость `spring-cloud-starter-netflix-eureka-client` в каждый сервис
+
+## OpenFeign
+Реализована интеграция между сервисами через декларативный HTTP-клиент OpenFeign.
+
+```avroidl
+OrderService --(OpenFeign)--> ProductService  (GET /api/products/{id} — данные товара)
+             --(OpenFeign)--> InventoryService (POST /reserve, /release — остатки)
+                                |
+                                └──> Eureka (Service Discovery)
+```
+* Сервисы
+  * order-service — оркестратор заказа. Через ProductClient получает данные товара (название, цену, статус активности), 
+  через InventoryClient — резервирует и снимает остатки. При срыве сценария выполняет компенсацию.
+  * product-service — каталог товаров. Отдаёт ProductDto по id.
+  * inventory-service — склад. Принимает запросы на резервирование и снятие остатков.
+  * Eureka Server — реестр сервисов. Позволяет order-service находить оба зависимых сервиса по логическому имени.
+
+`OrderService (с внедрением OpenFeign)`
+Сервис оформления заказов.
+Реализует бизнес-логику создания заказа с синхронной проверкой товаров через product-service 
+и резервированием остатков через inventory-service
+
+* Активация Feign: В главном классе приложения проставлена аннотация @EnableFeignClients для сканирования интерфейсов-клиентов.
+* Два декларативных клиента:
+  * ProductClient — получает данные товара из product-service
+  * InventoryClient — резервирует остатки в inventory-service
+* Оркестрация заказа (OrderOrchestrationServiceImpl):
+  * Группирует позиции по productId (дубликаты суммируются)
+  * Запрашивает данные каждого товара через ProductClient - один запрос на уникальный productId
+  *  Проверяет, что товар активен (product.active() == true)
+  *  Резервирует остатки через InventoryClient - один запрос на productId с суммарным количеством `inventoryClient.reserveStock(request);`
+  *  Формирует снимок данных товара (OrderItemData: productId, name, price, quantity) и сохраняет заказ
+  *  При ошибке резервирования или сохранения — запускает компенсацию: снимает все ранее созданные резервы через `inventoryClient.releaseStock()`

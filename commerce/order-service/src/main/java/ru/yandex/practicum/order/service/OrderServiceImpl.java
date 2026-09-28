@@ -3,10 +3,10 @@ package ru.yandex.practicum.order.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.yandex.practicum.order.dto.CreateOrderRequest;
 import ru.yandex.practicum.order.dto.OrderDto;
 import ru.yandex.practicum.order.entity.Order;
 import ru.yandex.practicum.order.exception.NotFoundException;
+import ru.yandex.practicum.order.dto.OrderItemData;
 import ru.yandex.practicum.order.mapper.OrderMapper;
 import ru.yandex.practicum.order.repository.OrderRepository;
 
@@ -21,8 +21,9 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     @Transactional
-    public OrderDto createOrder(CreateOrderRequest request) {
-        Order order = orderMapper.toEntity(request);
+    public OrderDto saveOrder(String customerName, String customerEmail,
+                              List<OrderItemData> items) {
+        Order order = orderMapper.toEntity(customerName, customerEmail, items);
         return orderMapper.toDto(orderRepository.save(order));
     }
 
