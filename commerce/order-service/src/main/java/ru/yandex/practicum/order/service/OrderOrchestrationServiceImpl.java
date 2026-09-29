@@ -8,11 +8,15 @@ import ru.yandex.practicum.order.dto.CreateOrderRequest;
 import ru.yandex.practicum.order.dto.OrderDto;
 import ru.yandex.practicum.order.dto.OrderItemData;
 import ru.yandex.practicum.order.dto.OrderItemRequest;
+import ru.yandex.practicum.order.entity.OrderStatus;
+import ru.yandex.practicum.order.exception.InventoryServiceUnavailableException;
 import ru.yandex.practicum.order.exception.OrderProcessingException;
+import ru.yandex.practicum.order.exception.ProductServiceUnavailableException;
 import ru.yandex.practicum.order.feign.InventoryClient;
 import ru.yandex.practicum.order.feign.ProductClient;
 import ru.yandex.practicum.order.feign.dto.*;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -37,38 +41,71 @@ public class OrderOrchestrationServiceImpl implements OrderOrchestrationService 
         }
         log.info("Сгруппированные позиции заказа: {}", groupedItems);
 
+        // флаги для отслеживания технической деградации
+        // если хотя бы один вызов упал в degraded, заказ сохранится как PENDING_CONFIRMATION
+        boolean degraded = false;
+        String degradationReason = null;
+
         // Получаем данные товаров (один запрос на уникальный productId)
         Map<Long, ProductDto> products = new HashMap<>();
         for (Long productId : groupedItems.keySet()) {
-            ProductDto product;
-            try {
-                product = productClient.getProductById(productId);
-            } catch (FeignException e) {
-                throw mapProductException(e, productId);
+            // обёртка вызова в ServiceCallResult, который возвращает один из результатов: Success, Failure или Degraded
+            ServiceCallResult<ProductDto> result = getProduct(productId);
+            switch (result) {
+                case ServiceCallResult.Success<ProductDto> s -> {
+                    ProductDto product = s.value();
+                    if (!product.active()) {
+                        throw new OrderProcessingException(
+                                "Товар с id=%d снят с продажи".formatted(productId));
+                    }
+                    products.put(productId, product);
+                }
+                // бизнес-отказ (товар не найден) - заказ не создаётся
+                case ServiceCallResult.Failure<ProductDto> f -> {
+                    throw new OrderProcessingException(f.message());
+                }
+                // техническая деградация - product-service недоступен
+                case ServiceCallResult.Degraded<ProductDto> d -> {
+                    degraded = true;
+                    degradationReason = d.reason();
+                    log.warn("Деградация: {}", d.reason());
+                    // Не прерываем цикл: остальные товары тоже пытаемся получить,
+                    // но они тоже скорее всего упадут в degraded
+                }
             }
-            if (!product.active()) {
-                throw new OrderProcessingException(
-                        "Товар с id=%d снят с продажи".formatted(productId));
-            }
-            products.put(productId, product);
         }
 
         // Резервируем товары (суммарное количество по каждому productId)
         List<ReleaseRequest> reserved = new ArrayList<>();
-        for (Map.Entry<Long, Integer> entry : groupedItems.entrySet()) {
-            Long productId = entry.getKey();
-            Integer quantity = entry.getValue();
+        // пропускаем резервирование, если каталог уже деградировал
+        // если product-service недоступен, нет смысла резервировать - данных о товаре нет
+        if (!degraded) {
+            for (Map.Entry<Long, Integer> entry : groupedItems.entrySet()) {
+                Long productId = entry.getKey();
+                Integer quantity = entry.getValue();
 
-            try {
-                // Пытаемся зарезервировать товар на удалённом сервисе
-                inventoryClient.reserveStock(new ReserveRequest(productId, quantity));
-                // Если успех - запоминаем, что нужно будет снять резерв при откате
-                reserved.add(new ReleaseRequest(productId, quantity));
-                log.info("Зарезервирован товар id={}, количество={}", productId, quantity);
-            } catch (FeignException e) {
-                // Если ошибка — снимаем все ранее сделанные резервы
-                compensate(reserved);
-                throw mapInventoryException(e, productId);
+                // обёртка вызова в ServiceCallResult
+                ServiceCallResult<ReserveResponse> result = reserve(productId, quantity);
+                switch (result) {
+                    case ServiceCallResult.Success<ReserveResponse> s -> {
+                        // если успех - запоминаем, что нужно будет снять резерв при откате
+                        reserved.add(new ReleaseRequest(productId, quantity));
+                        log.info("Зарезервирован товар id={}, количество={}", productId, quantity);
+                    }
+                    // бизнес-отказ (склад ответил 404/409) - компенсируем и отклоняем
+                    case ServiceCallResult.Failure<ReserveResponse> f -> {
+                        // если ошибка - снимаем все ранее сделанные резервы
+                        compensate(reserved);
+                        throw new OrderProcessingException(f.message());
+                    }
+                    // техническая деградация - inventory-service недоступен
+                    case ServiceCallResult.Degraded<ReserveResponse> d -> {
+                        degraded = true;
+                        degradationReason = d.reason();
+                        log.warn("Деградация: {}", d.reason());
+                    }
+                }
+                if (degraded) break;
             }
         }
 
@@ -79,25 +116,74 @@ public class OrderOrchestrationServiceImpl implements OrderOrchestrationService 
             Integer quantity = entry.getValue();
             ProductDto product = products.get(productId);
 
-            snapshots.add(new OrderItemData(
-                    productId,
-                    product.name(),
-                    product.price(),
-                    quantity
-            ));
+            // если товар не получен из-за деградации каталога
+            // сохраняем доступный productId, название-заглушку и цену 0
+            if (product != null) {
+                snapshots.add(new OrderItemData(
+                        productId,
+                        product.name(),
+                        product.price(),
+                        quantity
+                ));
+            } else {
+                snapshots.add(new OrderItemData(
+                        productId,
+                        "Товар #%d (ожидает проверки)".formatted(productId),
+                        BigDecimal.ZERO,
+                        quantity
+                ));
+            }
         }
+        // определяем статус заказа
+        // Если всё прошло без деградации - CONFIRMED
+        // Если хотя бы один сервис был недоступен - PENDING_CONFIRMATION
+        OrderStatus status = degraded
+                ? OrderStatus.PENDING_CONFIRMATION
+                : OrderStatus.CONFIRMED;
+
+        String statusDetails = degraded
+                ? "Заказ требует ручной проверки: " + degradationReason
+                : null;
 
         // Сохраняем заказ (в локальной транзакции)
         try {
             return orderService.saveOrder(
                     request.customerName(),
                     request.customerEmail(),
-                    snapshots
+                    snapshots,
+                    status,
+                    statusDetails
             );
         } catch (Exception e) {
             log.error("Ошибка при сохранении заказа, запускаем компенсацию", e);
             compensate(reserved);
             throw new OrderProcessingException("Не удалось сохранить заказ");
+        }
+    }
+
+    // обёртка вызова к product-service, возвращающая ServiceCallResult
+    private ServiceCallResult<ProductDto> getProduct(Long productId) {
+        try {
+            // Success — товар получен
+            return new ServiceCallResult.Success<>(productClient.getProductById(productId));
+        } catch (ProductServiceUnavailableException e) {
+            // техническая деградация, Fallback выбросил это исключение — значит product-service технически недоступен
+            return new ServiceCallResult.Degraded<>("Каталог временно недоступен");
+        } catch (FeignException e) {
+            // Бизнес-ошибка (4xx), проброшенная из fallback - это не деградация, а отказ
+            return new ServiceCallResult.Failure<>(mapProductException(e, productId).getMessage());
+        }
+    }
+
+    // обёртка вызова к inventory-service, возвращающая ServiceCallResult
+    private ServiceCallResult<ReserveResponse> reserve(Long productId, Integer quantity) {
+        try {
+            ReserveResponse response = inventoryClient.reserveStock(new ReserveRequest(productId, quantity));
+            return new ServiceCallResult.Success<>(response);
+        } catch (InventoryServiceUnavailableException e) {
+            return new ServiceCallResult.Degraded<>("Склад временно недоступен");
+        } catch (FeignException e) {
+            return new ServiceCallResult.Failure<>(mapInventoryException(e, productId).getMessage());
         }
     }
 
