@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.yandex.practicum.order.dto.OrderDto;
 import ru.yandex.practicum.order.entity.Order;
+import ru.yandex.practicum.order.entity.OrderStatus;
 import ru.yandex.practicum.order.exception.NotFoundException;
 import ru.yandex.practicum.order.dto.OrderItemData;
 import ru.yandex.practicum.order.mapper.OrderMapper;
@@ -22,8 +23,9 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional
     public OrderDto saveOrder(String customerName, String customerEmail,
-                              List<OrderItemData> items) {
-        Order order = orderMapper.toEntity(customerName, customerEmail, items);
+                              List<OrderItemData> items,
+                              OrderStatus status, String statusDetails) {
+        Order order = orderMapper.toEntity(customerName, customerEmail, items, status, statusDetails);
         return orderMapper.toDto(orderRepository.save(order));
     }
 

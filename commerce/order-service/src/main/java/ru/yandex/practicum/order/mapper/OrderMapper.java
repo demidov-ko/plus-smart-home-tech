@@ -44,11 +44,13 @@ public class OrderMapper {
     }
 
     public Order toEntity(String customerName, String customerEmail,
-                          List<OrderItemData> items) {
+                          List<OrderItemData> items,
+                          OrderStatus status, String statusDetails) {
         Order order = Order.builder()
                 .customerName(customerName)
                 .customerEmail(customerEmail)
-                .status(OrderStatus.CONFIRMED)
+                .status(status) // берем из параметра
+                .statusDetails(statusDetails)
                 .createdAt(LocalDateTime.now())
                 .items(new ArrayList<>())
                 .build();
