@@ -41,7 +41,7 @@ spring:
           filters:
             - name: Retry
               args:
-                retries: 2
+                retries: 3
                 statuses:
                   - BAD_GATEWAY
                   - SERVICE_UNAVAILABLE
@@ -72,7 +72,7 @@ spring:
           filters:
             - name: Retry
               args:
-                retries: 2
+                retries: 3
                 statuses:
                   - BAD_GATEWAY
                   - SERVICE_UNAVAILABLE
@@ -97,7 +97,7 @@ spring:
           filters:
             - name: Retry
               args:
-                retries: 2
+                retries: 3
                 statuses:
                   - BAD_GATEWAY
                   - SERVICE_UNAVAILABLE
