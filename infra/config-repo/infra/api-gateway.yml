@@ -1,0 +1,115 @@
+server:
+  port: 8080
+
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: false    # отключение автоматической публикации маршрутов по всем сервисам из Eureka
+      # Настройrка CORS глобально в конфигурации Gateway
+      globalcors:
+        add-to-simple-url-handler-mapping: true
+        cors-configurations:
+          '[/**]':
+            allowed-origins:
+              - http://localhost:3000
+              - http://localhost:5173
+              - http://localhost:8443
+            allowed-methods:
+              - GET
+              - POST
+              - PUT
+              - PATCH
+              - DELETE
+              - OPTIONS
+            allowed-headers:
+              - '*'
+            exposed-headers:
+              - Location
+            allow-credentials: true
+            max-age: 3600
+      #-------------------------------------------------------------------------------------------------
+      # Маршруты к сервисам магазина
+      routes:
+        # Read-маршрут и Retry для GET-запросов для product-service (Read-маршрут должен идти раньше основного маршрута)
+        - id: product-service-read
+          uri: lb://product-service # обозначение, что клиент обращается к сервису по имени
+          predicates:
+            - Path=/api/products/**,/api/categories/**
+            - Method=GET
+          filters:
+            - name: Retry
+              args:
+                retries: 2
+                statuses:
+                  - BAD_GATEWAY
+                  - SERVICE_UNAVAILABLE
+                  - GATEWAY_TIMEOUT
+                methods:
+                  - GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+          #-----------------------------
+          # основной маршрут к product-service
+        - id: product-service-products
+          uri: lb://product-service
+          predicates:
+            - Path=/api/products/**   # каталог товаров и категории идут в product-service
+
+        - id: product-service-categories
+          uri: lb://product-service
+          predicates:
+            - Path=/api/categories/**
+        #-------------------------------------------------------------------------------------------------
+        # Read-маршрут и Retry для GET-запросов для inventory-service
+        - id: inventory-service-read
+          uri: lb://inventory-service
+          predicates:
+            - Path=/api/inventory/**
+            - Method=GET
+          filters:
+            - name: Retry
+              args:
+                retries: 2
+                statuses:
+                  - BAD_GATEWAY
+                  - SERVICE_UNAVAILABLE
+                  - GATEWAY_TIMEOUT
+                methods:
+                  - GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+            #-----------------------------
+        - id: inventory-service
+          uri: lb://inventory-service
+          predicates:
+            - Path=/api/inventory/**    # складские запросы идут в inventory-service
+        #-------------------------------------------------------------------------------------------------
+        # # Read-маршрут и Retry для GET-запросов для order-service
+        - id: order-service-read
+          uri: lb://order-service
+          predicates:
+            - Path=/api/orders/**
+            - Method=GET
+          filters:
+            - name: Retry
+              args:
+                retries: 2
+                statuses:
+                  - BAD_GATEWAY
+                  - SERVICE_UNAVAILABLE
+                  - GATEWAY_TIMEOUT
+                methods:
+                  - GET
+                backoff:
+                  firstBackoff: 100ms
+                  maxBackoff: 500ms
+            #-----------------------------
+        - id: order-service
+          uri: lb://order-service
+          predicates:
+            - Path=/api/orders/**     # запросы заказов идут в order-service
+      #-------------------------------------------------------------------------------------------------
