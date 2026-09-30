@@ -17,3 +17,4 @@ spring:
             - file:./infra/config-repo    # нужен для общего файла application.yml
             - file:./infra/config-repo/telemetry  # нужен для сервисных файлов aggregator.yml, analyzer.yml и collector.yml
             - file:./infra/config-repo/commerce
+            - file:./infra/config-repo/infra

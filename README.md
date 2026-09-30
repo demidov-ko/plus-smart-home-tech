@@ -192,3 +192,61 @@ OrderService --(OpenFeign)--> ProductService  (GET /api/products/{id} — дан
       * если склад недоступен - резервирование не подтверждается. В statusDetails записывается причина для ручной проверки.
 *  Сохранена компенсация резерва: при срыве сценария после успешного резервирования снятие выполняется через inventory-service. 
    Компенсация — best-effort: при ошибке логируется, но не прерывает поток.
+
+## API Gateway
+
+`api-gateway` - единая входная точка для внешних HTTP-запросов 
+
+Клиент отправляет запросы на один адрес, а Gateway определяет, какой внутренний сервис должен их обработать. 
+Например, запросы к товарам и категориям уходят в product-service, складские запросы — в inventory-service, а запросы заказов — в order-service.
+
+api-gateway добавлен как отдельный инфраструктурный сервис в модуле infra. 
+Он получает конфигурацию из Config Server и регистрируется в Eureka.
+
+Для маршрутов используется явная конфигурация. Это значит, что Gateway открывает наружу только те пути, которые описаны в api-gateway.yml:
+
+```avroidl
+/api/products/**    → product-service
+/api/categories/**  → product-service
+/api/inventory/**   → inventory-service
+/api/orders/**      → order-service
+```
+
+Автоматическая публикация всех сервисов из Eureka отключена. 
+
+* Проверка запуска
+```avroidl
+    config-server
+    discovery-server
+    api-gateway
+    product-service
+    inventory-service
+    order-service
+    web-ui
+```
+* Проверка Eureka Dashboard: http://localhost:8761 
+  ```avroidl
+    В списке должны быть:
+    API-GATEWAY
+    PRODUCT-SERVICE
+    INVENTORY-SERVICE
+    ORDER-SERVICE
+    ```
+* Проверка API через Gateway:    
+    ```avroidl
+        GET http://localhost:8080/api/products
+        GET http://localhost:8080/api/categories
+        GET http://localhost:8080/api/inventory
+        GET http://localhost:8080/api/orders
+    ```
+* Проверка Load Balancing
+  * Надо запустить два экземпляра `product-service`.  Оба должны зарегистрироваться в Eureka под именем PRODUCT-SERVICE, но на разных портах.
+  * После этого отправьте несколько быстрых запросов:
+  ```avroidl
+    GET http://localhost:8080/api/products
+    ```
+* Проверка готового Web UI  
+  * Запустите Web UI профилем gateway: 
+  
+  `java -jar commerce/web-ui/web-ui.jar --spring.profiles.active=gateway `
+  * Затем http://localhost:8443 и проверка основных сценариев
