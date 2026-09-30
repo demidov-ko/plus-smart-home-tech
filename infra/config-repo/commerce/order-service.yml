@@ -22,6 +22,9 @@ spring:
         # каждый метод @FeignClient в прокси, который следит за ошибками.
         # Если ошибок становится много - прокси сам не даст сделать новый вызов,
         # а сразу выбросит исключение (состояние OPEN).
+    loadbalancer:
+      cache:
+        ttl: 5s     # кэш LB обновится за 5 секунд
 
 feign:
   client:
@@ -34,6 +37,10 @@ feign:
       inventory-service:  # название сервиса в @FeignClient
         connectTimeout: 1000
         readTimeout: 2000
+
+eureka:
+  client:
+    registry-fetch-interval-seconds: 5
 
 resilience4j:
   circuitbreaker:
