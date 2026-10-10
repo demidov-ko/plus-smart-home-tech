@@ -250,3 +250,47 @@ api-gateway добавлен как отдельный инфраструкту�
   
   `java -jar commerce/web-ui/web-ui.jar --spring.profiles.active=gateway `
   * Затем http://localhost:8443 и проверка основных сценариев
+
+## Spring Security в API Gateway
+Добавлена security-настройку в модуль `infra/api-gateway`. 
+
+Spring Cloud Gateway работает на реактивном стеке
+
+  * Web UI в защищённом режиме:
+
+    `java -jar commerce/web-ui/web-ui.jar --spring.profiles.active=gateway-secured`
+
+* Основные сецнарии:
+  - Анонимный пользователь может просматривать каталог и наличие товаров.
+  - Анонимный пользователь не может оформить заказ.
+  - Пользователь ivan может оформить заказ.
+  - Пользователь ivan не может открыть административные сценарии.
+  - Пользователь anna может открыть административные сценарии.
+  - Неизвестный маршрут не проходит через Gateway.
+
+### Правила доступа
+* Публичные маршруты:
+```
+                Маршрут	                        Доступ
+    OPTIONS /**	                            доступен всем
+    Swagger/OpenAPI-маршруты сервисов	    доступны всем
+    GET /api/products/**	            доступен всем
+    GET /api/categories/**	            доступен всем
+    GET /api/inventory/**	            доступен всем
+```
+* Пользовательские маршруты: 
+```
+        Маршрут	                    Доступ
+POST /api/orders/**	        нужна роль USER
+GET /api/orders/by-email?...	нужна роль USER
+GET /api/orders/{id}	        нужна роль USER
+```
+* Административные маршруты:
+```
+        Маршрут	                            Доступ
+GET /api/orders	                        нужна роль ADMIN
+Изменяющие маршруты /api/products/**	нужна роль ADMIN
+Изменяющие маршруты /api/categories/**	нужна роль ADMIN
+Изменяющие маршруты /api/inventory/**	нужна роль ADMIN
+```
+Все остальные маршруты закрыты.
