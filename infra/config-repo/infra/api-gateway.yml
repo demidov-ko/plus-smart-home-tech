@@ -113,3 +113,17 @@ spring:
           predicates:
             - Path=/api/orders/**     # запросы заказов идут в order-service
       #-------------------------------------------------------------------------------------------------
+
+# Учебные пользователи
+app:
+  security:
+    users:
+      - username: ivan
+        password: ivan
+        roles:
+          - USER
+      - username: anna
+        password: anna
+        roles:
+          - USER
+          - ADMIN
