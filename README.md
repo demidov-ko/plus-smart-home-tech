@@ -107,6 +107,9 @@ docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:9092 -
   * откроется Eureka Dashboard — веб-интерфейс Eureka Server и в нем будут зарегестрированные приложения
 * Проверяем реестр через HTTP `curl http://localhost:8761/eureka/apps` в терминале
   * Или проверка конкретного сервиса`http://localhost:8761/eureka/apps/AGGREGATOR`
+* Запуск OrderService, ProductService и InventoryService
+* Запуск приложения java -jar commerce/web-ui/web-ui.jar
+  * Проверка на сайте http://localhost:8443
 
 ### Где хранится адрес Eureka Server
 В общей конфигурации можно хранить адрес Eureka Server.
@@ -120,3 +123,174 @@ docker exec -it kafka kafka-console-consumer --bootstrap-server localhost:9092 -
                     defaultZone: http://localhost:8761/eureka/ 
 ```
 Так же добавлена зависимость `spring-cloud-starter-netflix-eureka-client` в каждый сервис
+
+## OpenFeign
+Реализована интеграция между сервисами через декларативный HTTP-клиент OpenFeign.
+
+```avroidl
+OrderService --(OpenFeign)--> ProductService  (GET /api/products/{id} — данные товара)
+             --(OpenFeign)--> InventoryService (POST /reserve, /release — остатки)
+                                |
+                                └──> Eureka (Service Discovery)
+```
+* Сервисы
+  * order-service — оркестратор заказа. Через ProductClient получает данные товара (название, цену, статус активности), 
+  через InventoryClient — резервирует и снимает остатки. При срыве сценария выполняет компенсацию.
+  * product-service — каталог товаров. Отдаёт ProductDto по id.
+  * inventory-service — склад. Принимает запросы на резервирование и снятие остатков.
+  * Eureka Server — реестр сервисов. Позволяет order-service находить оба зависимых сервиса по логическому имени.
+
+`OrderService (с внедрением OpenFeign)`
+Сервис оформления заказов.
+Реализует бизнес-логику создания заказа с синхронной проверкой товаров через product-service 
+и резервированием остатков через inventory-service
+
+* Активация Feign: В главном классе приложения проставлена аннотация @EnableFeignClients для сканирования интерфейсов-клиентов.
+* Два декларативных клиента:
+  * ProductClient — получает данные товара из product-service
+  * InventoryClient — резервирует остатки в inventory-service
+* Оркестрация заказа (OrderOrchestrationServiceImpl):
+  * Группирует позиции по productId (дубликаты суммируются)
+  * Запрашивает данные каждого товара через ProductClient - один запрос на уникальный productId
+  *  Проверяет, что товар активен (product.active() == true)
+  *  Резервирует остатки через InventoryClient - один запрос на productId с суммарным количеством `inventoryClient.reserveStock(request);`
+  *  Формирует снимок данных товара (OrderItemData: productId, name, price, quantity) и сохраняет заказ
+  *  При ошибке резервирования или сохранения — запускает компенсацию: снимает все ранее созданные резервы через `inventoryClient.releaseStock()`
+
+## Circuit Breaker в order-service
+
+С помощью OpenFeign order-service научился обращаться к product-service и inventory-service: получать данные товара, 
+резервировать остатки и создавать заказ на основе ответов соседних сервисов
+
+`Circuit Breaker` — паттерн, который отслеживает результаты вызовов к зависимому сервису и временно блокирует новые обращения, 
+если ошибок или медленных ответов стало слишком много. Он не чинит соседний сервис, но защищает вызывающую сторону: 
+помогает не тратить ресурсы на заведомо проблемные запросы и не распространять сбой дальше по системе.
+
+#### У Circuit Breaker есть три основных состояния:
+- `CLOSED` (закрыт) - штатный режим
+  - Все запросы идут напрямую к product-service / inventory-service
+  - Resilience4j: Считает статусы и ошибки. Если процент ошибок превысит порог (например, 50% за последние N вызовов) — переходит в OPEN
+- `OPEN` (открыт) - блокировка запросов
+  - Resilience4j не даёт сделать сетевой вызов вообще. Сразу возвращает ошибку
+- `HALF_OPEN` (полуоткрыт) - проверка восстановления
+  - По истечении времени удержания в OPEN Resilience4j разрешает пробный запрос, чтобы проверить вернулся ли сервис в строй, не обрушивая его потоком
+  - Пробный вызов идёт как обычный Feign-запрос:
+  - Если он успешен → CB закрывается (CLOSED), все следующие запросы идут нормально.
+  - Если снова ошибка → CB сразу уходит обратно в OPEN.
+
+#### Сделано 
+* Подключён Spring Cloud Circuit Breaker с Resilience4j в order-service - зависимость добавлена в pom.xml.
+*  Включён Circuit Breaker для OpenFeign и настроен Resilience4j (размер окна, порог ошибок, время в открытом состоянии, таймаут) - конфигурация лежит в infra/config-repo/commerce/order-service.yml
+*  Реализованы fallback-фабрики для ProductClient и InventoryClient через FallbackFactory 
+   фабрики получают причину сбоя (Throwable cause), логируют её и выбрасывают типизированные исключения (ProductServiceUnavailableException, InventoryServiceUnavailableException).
+*  Бизнес-ошибки не маскируются fallback'ом: 404 (товар не найден), 409 (недостаточно остатков), active = false - приводят к отказу в создании заказа. 
+   Fallback срабатывает только на техническую недоступность (5xx, таймаут, открытый Circuit Breaker).
+*  Введён ServiceCallResult<T> (sealed interface) - оркестратор явно различает три результата вызова: Success, Failure (бизнес-отказ), Degraded (техническая недоступность).
+*  При технической деградации заказ сохраняется в статусе PENDING_CONFIRMATION:
+  * 
+      * если каталог недоступен - сохраняется productId, название-заглушка Товар #<id> (ожидает проверки) и цена 0; 
+      * если склад недоступен - резервирование не подтверждается. В statusDetails записывается причина для ручной проверки.
+*  Сохранена компенсация резерва: при срыве сценария после успешного резервирования снятие выполняется через inventory-service. 
+   Компенсация — best-effort: при ошибке логируется, но не прерывает поток.
+
+## API Gateway
+
+`api-gateway` - единая входная точка для внешних HTTP-запросов 
+
+Клиент отправляет запросы на один адрес, а Gateway определяет, какой внутренний сервис должен их обработать. 
+Например, запросы к товарам и категориям уходят в product-service, складские запросы — в inventory-service, а запросы заказов — в order-service.
+
+api-gateway добавлен как отдельный инфраструктурный сервис в модуле infra. 
+Он получает конфигурацию из Config Server и регистрируется в Eureka.
+
+Для маршрутов используется явная конфигурация. Это значит, что Gateway открывает наружу только те пути, которые описаны в api-gateway.yml:
+
+```avroidl
+/api/products/**    → product-service
+/api/categories/**  → product-service
+/api/inventory/**   → inventory-service
+/api/orders/**      → order-service
+```
+
+Автоматическая публикация всех сервисов из Eureka отключена. 
+
+* Проверка запуска
+```avroidl
+    config-server
+    discovery-server
+    api-gateway
+    product-service
+    inventory-service
+    order-service
+    web-ui
+```
+* Проверка Eureka Dashboard: http://localhost:8761 
+  ```avroidl
+    В списке должны быть:
+    API-GATEWAY
+    PRODUCT-SERVICE
+    INVENTORY-SERVICE
+    ORDER-SERVICE
+    ```
+* Проверка API через Gateway:    
+    ```avroidl
+        GET http://localhost:8080/api/products
+        GET http://localhost:8080/api/categories
+        GET http://localhost:8080/api/inventory
+        GET http://localhost:8080/api/orders
+    ```
+* Проверка Load Balancing
+  * Надо запустить два экземпляра `product-service`.  Оба должны зарегистрироваться в Eureka под именем PRODUCT-SERVICE, но на разных портах.
+  * После этого отправьте несколько быстрых запросов:
+  ```avroidl
+    GET http://localhost:8080/api/products
+    ```
+* Проверка готового Web UI  
+  * Запустите Web UI профилем gateway: 
+  
+  `java -jar commerce/web-ui/web-ui.jar --spring.profiles.active=gateway `
+  * Затем http://localhost:8443 и проверка основных сценариев
+
+## Spring Security в API Gateway
+Добавлена security-настройку в модуль `infra/api-gateway`. 
+
+Spring Cloud Gateway работает на реактивном стеке
+
+  * Web UI в защищённом режиме:
+
+    `java -jar commerce/web-ui/web-ui.jar --spring.profiles.active=gateway-secured`
+
+* Основные сецнарии:
+  - Анонимный пользователь может просматривать каталог и наличие товаров.
+  - Анонимный пользователь не может оформить заказ.
+  - Пользователь ivan может оформить заказ.
+  - Пользователь ivan не может открыть административные сценарии.
+  - Пользователь anna может открыть административные сценарии.
+  - Неизвестный маршрут не проходит через Gateway.
+
+### Правила доступа
+* Публичные маршруты:
+```
+                Маршрут	                        Доступ
+    OPTIONS /**	                            доступен всем
+    Swagger/OpenAPI-маршруты сервисов	    доступны всем
+    GET /api/products/**	            доступен всем
+    GET /api/categories/**	            доступен всем
+    GET /api/inventory/**	            доступен всем
+```
+* Пользовательские маршруты: 
+```
+        Маршрут	                    Доступ
+POST /api/orders/**	        нужна роль USER
+GET /api/orders/by-email?...	нужна роль USER
+GET /api/orders/{id}	        нужна роль USER
+```
+* Административные маршруты:
+```
+        Маршрут	                            Доступ
+GET /api/orders	                        нужна роль ADMIN
+Изменяющие маршруты /api/products/**	нужна роль ADMIN
+Изменяющие маршруты /api/categories/**	нужна роль ADMIN
+Изменяющие маршруты /api/inventory/**	нужна роль ADMIN
+```
+Все остальные маршруты закрыты.
