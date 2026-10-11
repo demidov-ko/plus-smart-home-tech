@@ -45,7 +45,7 @@ class GatewaySecurityConfigTest {
         webTestClient.post().uri("/api/orders")
                 .header(HttpHeaders.AUTHORIZATION, basic("ivan", "ivan"))
                 .exchange()
-                .expectStatus().value(this::assertPassedSecurity);
+                .expectStatus().isOk();;
     }
 
     @Test
@@ -61,7 +61,7 @@ class GatewaySecurityConfigTest {
         webTestClient.post().uri("/api/products")
                 .header(HttpHeaders.AUTHORIZATION, basic("anna", "anna"))
                 .exchange()
-                .expectStatus().value(this::assertPassedSecurity);
+                .expectStatus().isOk();
     }
 
     @Test
@@ -77,7 +77,7 @@ class GatewaySecurityConfigTest {
         webTestClient.get().uri("/api/orders")
                 .header(HttpHeaders.AUTHORIZATION, basic("anna", "anna"))
                 .exchange()
-                .expectStatus().value(this::assertPassedSecurity);
+                .expectStatus().isOk();
     }
 
     @Test
@@ -90,19 +90,15 @@ class GatewaySecurityConfigTest {
 
     @Test
     void corsPreflight_isPublic() {
-        webTestClient.options().uri("/api/orders")
+        webTestClient.options().uri("http://localhost/api/orders")
                 .header(HttpHeaders.ORIGIN, "http://localhost:3000")
                 .header("Access-Control-Request-Method", "POST")
                 .exchange()
-                .expectStatus().value(this::assertPassedSecurity);
+                .expectStatus().isOk()
+                .expectHeader().valueEquals("Access-Control-Allow-Origin", "http://localhost:3000")
+                .expectHeader().exists("Access-Control-Allow-Methods");
     }
 
-    private void assertPassedSecurity(int status) {
-        if (status == 401 || status == 403) {
-            throw new AssertionError(
-                    "Ожидали, что запрос пройдёт security-проверку, а получили статус " + status);
-        }
-    }
 
     private String basic(String username, String password) {
         String value = username + ":" + password;
@@ -123,8 +119,8 @@ class GatewaySecurityConfigTest {
         @Bean
         RouteLocator testRouteLocator(RouteLocatorBuilder builder) {
             return builder.routes()
-                    .route("test-products", r -> r.path("/api/products/**").uri("forward:/test-backend"))
-                    .route("test-orders", r -> r.path("/api/orders/**").uri("forward:/test-backend"))
+                    .route("test-products", r -> r.path("/api/products", "/api/products/**").uri("forward:/test-backend"))
+                    .route("test-orders", r -> r.path("/api/orders", "/api/orders/**").uri("forward:/test-backend"))
                     .build();
         }
     }
